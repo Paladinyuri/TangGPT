@@ -1,56 +1,85 @@
 # TangGPT
 
-一个从零搭建的 Decoder-only Transformer，用于中文古诗生成。
+这是我在学习 Transformer 和 PyTorch 时做的一个小项目。我的目标是不直接调用现成的大语言模型，而是自己从头搭建一个 Decoder-only Transformer，并尝试让它学习生成唐诗。
 
-当前版本包含模型、全唐诗数据处理、从零实现的 byte-level BPE tokenizer、
-单卡训练、checkpoint、断点续训和文本生成。
+项目目前还在实验阶段，模型规模大约是 12.1M 参数。代码已经可以完成数据处理、tokenizer 训练、模型训练、断点续训和文本生成。正式训练还没有全部结束，所以最终 loss 和生成效果会在训练完成后补上。
 
-## 当前结构
+## 我为什么做这个项目
 
-- Token embedding
+我之前对 Transformer 的理解主要停留在结构图和公式上，所以想通过这个项目把整个流程真正跑一遍，包括：
+
+- 唐诗数据清洗和划分
+- 从零实现 byte-level BPE tokenizer
+- 实现 causal self-attention 和 Decoder block
+- 编写训练、验证和 checkpoint 保存逻辑
+- 用训练好的模型生成唐诗
+
+这个项目主要是为了学习，代码和配置可能还有不少可以改进的地方。
+
+## 目前实现的内容
+
+模型部分包括：
+
+- Token Embedding
 - RMSNorm
 - Rotary Position Embedding（RoPE）
-- Multi-head causal self-attention
-- SwiGLU feed-forward network
-- Pre-Norm residual decoder blocks
-- Tied language-model head
-- Byte-level BPE tokenizer（训练、编码、解码、保存、加载）
-- 全唐诗清洗、去重、体裁识别和稳定切分
-- PyTorch Dataset、动态 padding 与 next-token labels
-- AdamW、warmup + cosine decay、梯度累积和梯度裁剪
-- CUDA 混合精度、验证集评估、checkpoint 与断点续训
-- temperature + top-k 自回归生成
+- Multi-head Causal Self-Attention
+- SwiGLU
+- Pre-Norm 残差连接
+- Tied Language Model Head
 
-## 阅读顺序
+训练部分包括：
 
-建议按下面的顺序阅读 `src/tanggpt/model.py`：
+- AdamW 优化器
+- Warmup + Cosine Learning Rate Decay
+- 梯度累积和梯度裁剪
+- CUDA 混合精度训练
+- 验证集评估
+- Checkpoint 保存和断点续训
+- Temperature + Top-k 采样生成
 
-1. `TangGPTConfig`
-2. `RMSNorm`
-3. `RotaryEmbedding`
-4. `CausalSelfAttention`
-5. `SwiGLU`
-6. `DecoderBlock`
-7. `TangGPT`
+## 项目结构
 
-每读完一个模块，先在纸上写出输入和输出张量形状，再运行测试验证。
-
-## 运行
-
-在项目根目录执行：
-
-```powershell
-$env:PYTHONPATH = "src"
-python scripts/inspect_model.py
-python -m unittest discover -s tests -v
+```text
+TangGPT/
+├── artifacts/       # tokenizer 文件
+├── configs/         # 不同设备使用的训练配置
+├── data/            # 数据来源说明和本地数据
+├── learning/        # 学习过程中写的简化版本
+├── scripts/         # 数据处理、训练和生成脚本
+├── src/tanggpt/     # 模型和主要功能代码
+└── tests/           # 单元测试
 ```
 
-## 数据与 tokenizer
+## 环境
 
-数据来自 [chinese-poetry/chinese-poetry](https://github.com/chinese-poetry/chinese-poetry)，
-采用 MIT 许可证。原始语料默认位于 `data/raw/chinese-poetry/全唐诗`。
+- Python 3.10+
+- PyTorch 2.1+
+- 建议使用支持 CUDA 的 NVIDIA 显卡进行正式训练
 
-新服务器先下载数据：
+安装项目：
+
+```bash
+pip install -e .
+```
+
+运行测试：
+
+```bash
+pytest
+```
+
+也可以先查看模型结构：
+
+```bash
+python scripts/inspect_model.py
+```
+
+## 数据准备
+
+训练数据来自 [chinese-poetry/chinese-poetry](https://github.com/chinese-poetry/chinese-poetry)，使用的是其中的全唐诗数据。原项目采用 MIT License。
+
+下载数据：
 
 ```bash
 git clone --depth 1 --filter=blob:none --sparse \
@@ -59,59 +88,45 @@ git clone --depth 1 --filter=blob:none --sparse \
 git -C data/raw/chinese-poetry sparse-checkout set "全唐诗"
 ```
 
-然后准备语料。仓库已包含正式的 `artifacts/tokenizer.json`，通常不需要在
-服务器重新训练 tokenizer：
+准备训练集、验证集和测试集：
 
-```powershell
-$env:PYTHONPATH = "src"
+```bash
 python scripts/prepare_data.py
 ```
 
-该命令执行清洗、正文去重和 98%/1%/1% 切分。若希望从头复现 BPE 训练，再运行：
+仓库里已经放了训练好的 `artifacts/tokenizer.json`。如果想重新训练 tokenizer，可以运行：
 
 ```bash
 python scripts/train_tokenizer.py --vocab-size 4096
 ```
 
-`data/` 和训练 checkpoint 不会提交 Git，来源记录在 `data/SOURCE.md`。
+数据处理时会进行正文清洗、去重，并按照 98% / 1% / 1% 划分训练集、验证集和测试集。原始数据和训练 checkpoint 不会上传到 GitHub。
 
-## 本地端到端检查
+## 训练
 
-正式租服务器前，先确认完整流程能够运行：
+在正式训练之前，可以先用很小的数据做一次 smoke test：
 
-```powershell
-$env:PYTHONPATH = "src"
-python scripts/train.py `
-  --config configs/smoke.json `
-  --run-dir runs/smoke `
-  --train-limit 32 `
+```bash
+python scripts/train.py \
+  --config configs/smoke.json \
+  --run-dir runs/smoke \
+  --train-limit 32 \
   --valid-limit 16
 ```
 
-## 单张 RTX 4090 训练
-
-Linux 服务器中执行：
+单张 RTX 4090 使用：
 
 ```bash
-export PYTHONPATH=src
 python scripts/train.py --config configs/server_4090.json
 ```
 
-默认配置是 8,000 个 optimizer steps、batch size 64、梯度累积2次，等效
-batch size 为128，约遍历训练集21次。训练中会生成：
+我的 RTX 5060 Laptop 8GB 使用：
 
-```text
-runs/server_4090/
-├── config.json
-├── tokenizer.json
-├── train.jsonl
-├── samples.txt
-├── best.pt
-├── last.pt
-└── checkpoints/
+```bash
+python scripts/train.py --config configs/local_5060_8gb.json
 ```
 
-从最近 checkpoint 接着训练：
+如果训练中断，可以从最近一次保存的位置继续：
 
 ```bash
 python scripts/train.py \
@@ -119,22 +134,13 @@ python scripts/train.py \
   --resume runs/server_4090/last.pt
 ```
 
-`last.pt` 用于恢复训练；`best.pt` 是验证 loss 最低的模型，用于最终生成。
+训练目录中，`last.pt` 用来恢复训练，`best.pt` 是验证 loss 最低的模型。
 
-本机 RTX 5060 Laptop 8GB 使用专用配置：
-
-```powershell
-$env:PYTHONPATH = "src"
-python scripts/train.py --config configs/local_5060_8gb.json
-```
-
-该配置使用 BF16、batch size 16 和梯度累积8次，等效 batch size 仍为128。
-
-如果发生 CUDA out of memory，先把 `configs/server_4090.json` 中的
-`batch_size` 从64改为32，并把 `gradient_accumulation_steps` 从2改为4，
-等效 batch size 仍为128。
+如果出现 CUDA out of memory，可以减小 `batch_size`，同时增加 `gradient_accumulation_steps`，尽量保持等效 batch size 不变。
 
 ## 生成唐诗
+
+训练完成后可以运行：
 
 ```bash
 python scripts/generate.py \
@@ -147,15 +153,23 @@ python scripts/generate.py \
   --num-samples 5
 ```
 
-结果会显示在终端，并写入 `outputs/generated_poems.txt`。
+生成内容会显示在终端，并保存到 `outputs/generated_poems.txt`。
 
-默认配置约为 12.1M 参数模型；测试使用的是非常小的配置，因此可以在 CPU 上
-快速完成。
+## 训练结果
 
-## 下一阶段
+目前正式训练还在进行中。训练完成后，我会在这里补充：
 
-1. 整理和清洗唐诗数据
-2. 实现字符级 tokenizer
-3. 构造 next-token prediction 样本
-4. 先让极小模型过拟合少量诗歌
-5. 再编写完整训练循环和验证流程
+- 训练和验证 loss
+- 实际训练时间与使用的显卡
+- loss 曲线
+- 模型生成的唐诗样例
+- 训练过程中遇到的问题和调整记录
+
+## 目前的不足
+
+- 模型参数量比较小，生成效果有限
+- 目前只在单张显卡上训练
+- 还没有对不同模型配置做完整对比
+- 生成结果还需要人工观察和评估
+
+后面训练完成后，我会继续更新 README，也会记录效果比较好的样例和失败的例子。
