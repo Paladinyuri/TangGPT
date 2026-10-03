@@ -1,0 +1,49 @@
+{
+  "checkpoint": "D:\\tanggpt_experiment_c_models\\runs\\experiment_c_large\\best.pt",
+  "checkpoint_step": 3250,
+  "tokenizer_sha256": "9096f71d26fe3018ced56b3416d4654474e91102ddc3d7f9b25db263b33f28c3",
+  "torch": "2.14.0+cu130",
+  "device": "cuda",
+  "seed": 20261003,
+  "temperature": 0.8,
+  "top_k": 40,
+  "max_new_tokens": 192,
+  "note": "格式指标仅检查句数和字数，不判断平仄、押韵或文学质量。历史验证 loss 为 batch 均值，不能与本脚本 token 加权 loss 完全等同。",
+  "evaluation": {
+    "data": "C:\\Users\\lenovo\\Documents\\Codex\\2026-09-21\\wo\\outputs\\tanggpt\\data\\processed\\test.txt",
+    "data_sha256": "015407e7382114e1fdae2b0d6a20550b2705f4c360582654af050a773fa49e2c",
+    "poems": 515,
+    "truncated_poems": 0,
+    "tokens": 34590,
+    "token_weighted_loss": 3.7461459312731216,
+    "perplexity": 42.35751822317453
+  },
+  "generation": {
+    "5jue": {
+      "samples": 10,
+      "format_ok": 1.0,
+      "ended_with_eos": 1.0,
+      "repeated_clause": 0.0
+    },
+    "7jue": {
+      "samples": 10,
+      "format_ok": 1.0,
+      "ended_with_eos": 1.0,
+      "repeated_clause": 0.0
+    },
+    "5lv": {
+      "samples": 10,
+      "format_ok": 1.0,
+      "ended_with_eos": 1.0,
+      "repeated_clause": 0.0
+    },
+    "7lv": {
+      "samples": 10,
+      "format_ok": 1.0,
+      "ended_with_eos": 1.0,
+      "repeated_clause": 0.0
+    }
+  },
+  "exact_train_match_count": 0,
+  "overlap_note": "仅检查去标点正文完全匹配，不能排除近似复述。"
+}

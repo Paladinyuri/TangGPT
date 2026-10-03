@@ -18,3 +18,9 @@
 - 如果只看最低验证 loss，选择 C；如果同时考虑模型体积、训练速度和泛化，B 更均衡。
 
 原始 checkpoint 和训练日志没有提交到 GitHub。`summary.csv` 保存了用于复核的核心指标，曲线可以通过 `scripts/plot_experiments.py` 从 `train.jsonl` 重新生成。
+
+## 结果的适用范围
+
+以上为单个随机种子的观察，没有多次训练的方差或显著性检验。B 与 C 改变了层数、宽度等规模配置，不能进一步归因于其中某个独立结构因素。吞吐量也受设备、实现和测量条件影响。
+
+实验 C 最佳 checkpoint 的独立测试集评估及 40 首固定条件生成，见 [补充评估报告](evaluation/REPORT.md)。测试集 token 加权 loss 为 3.7461，不能与历史 batch 平均验证 loss 完全等同。A/B 的测试集结果尚未补测。

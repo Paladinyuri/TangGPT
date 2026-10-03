@@ -198,6 +198,29 @@ python scripts/plot_experiments.py \
 - 模型总体规模仍然较小，生成内容偶尔会语义生硬
 - 目前只在单张显卡上训练
 - 实验只使用一个随机种子，还没有验证多次训练的方差
-- 目前主要依赖验证 loss 和人工观察，缺少格律、重复率等自动评价指标
+- 自动评价目前只覆盖句数/字数、EOS、整句重复和正文匹配；未评价平仄、押韵、对仗和标题相关性
 
-这个版本先作为项目的阶段性结束。后续如果继续做，我会优先增加自动评价，而不是单纯延长训练步数。
+## 测试集与生成评估（2026-10-03）
+
+使用实验 C 验证集最优的 checkpoint（step 3,250），在 515 首测试诗歌、34,590 个有效 token 上得到 **token 加权交叉熵 3.7461、困惑度 42.36**。困惑度依赖本项目的 byte-level BPE，不能直接和使用其他 tokenizer 的模型比较。
+
+固定 10 个标题，每种诗体生成 10 首，共 40 首。温度为 0.8、top-k 为 40，样例种子从 20261003 开始递增。40 首均满足指定句数和字数，并正常生成 EOS；没有重复整句，也没有与训练集去标点正文完全匹配的整首诗。
+
+这不代表模型掌握了完整格律或能稳定生成高质量诗歌。样例中出现“明月照明月”和“不因逢雪雪”，说明仍有词语重复和语义生硬的问题。**全部样例均保留，未按质量筛选**，见 [评估报告](results/evaluation/REPORT.md) 和 [全部样例](results/evaluation/samples.md)。
+
+在项目根目录安装后，用实际 checkpoint 路径运行：
+
+```bash
+python scripts/evaluate_checkpoint.py --checkpoint runs/experiment_c_large/best.pt --tokenizer artifacts/tokenizer.json --output-dir results/evaluation --samples-per-form 10
+python scripts/audit_data.py --samples results/evaluation/samples.jsonl --output results/evaluation/data_audit.json
+```
+
+评估按非 padding token 数加权；历史训练日志的验证 loss 是 batch 均值，两者汇总口径有差异。报告保存数据和 tokenizer 的 SHA-256。缺少测试数据时脚本会明确标记，不能把仅生成样例当作完整测试评估。
+
+数据审计未发现训练、验证、测试集之间的去标点正文完全重复，但训练集内部存在 30 条去标点后重复的记录。历史实验保留原始数据版本，后续训练应先修订去重规则再重新比较。近似复述检查使用二元字符组 Jaccard 检索人工复核候选，不能据此证明模型完全没有记忆训练文本。
+
+## 如何复盘这个项目
+
+可以先读 `learning/tanggpt_minimal.py`，再看正式模型、数据处理和训练脚本。重点解释：为什么需要 causal mask、input/label 如何错位、padding 为什么不参与 loss、为什么选择 best.pt，以及 A/B/C 曲线如何体现过拟合。
+
+介绍项目时区分自己编写、修改、调试和借助工具完成的部分。项目参考 CS336 核心内容，不等同于完成了课程全部作业。
